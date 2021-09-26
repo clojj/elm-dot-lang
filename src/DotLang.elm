@@ -2,7 +2,8 @@ module DotLang exposing
     ( fromString
     , ID
     , NodeId(..)
-    , dot, node
+    , dot
+    , node
     )
 
 {-| Parse DOT Language to directed graph in Elm.
@@ -15,6 +16,7 @@ Take a look at the grammar <https://www.graphviz.org/doc/info/lang.html>
 # DOT Components
 
 @docs ID
+
 
 # Stmt Components
 
@@ -29,17 +31,19 @@ Take a look at the grammar <https://www.graphviz.org/doc/info/lang.html>
 
 import Dict exposing (Dict)
 import DoubleQuoteString as DQS
-import Parser exposing (..)
 import Graph exposing (..)
-import Set
 import Iter exposing (Iter)
+import Parser exposing (..)
+import Set
 import Tree
+
 
 node : Graph.NodeId -> String -> Node String
 node nid label =
     { id = nid
     , label = label
     }
+
 
 edge : Graph.NodeId -> Graph.NodeId -> Edge String
 edge from to =
@@ -58,21 +62,32 @@ fromString : String -> Result (List Parser.DeadEnd) (Graph String String)
 fromString =
     Parser.run dot
 
-type alias NodesAndEdge = (Node String, Node String, Edge String)
+
+type alias NodesAndEdge =
+    ( Node String, Node String, Edge String )
+
 
 type alias Dependencies =
-    { graph : (Graph String String)
-    , tree: Tree.Node String
+    { graph : Graph String String
+    , tree : Tree.Node String
     }
+
 
 {-| The core `Parser`, in case you want to embed it in some other parser.
 -}
+
+
+
 -- TODO result: combine Graph, Graph.Tree(?) and Tree/TreeView
+
+
 dot : Parser (Graph String String)
 dot =
     succeed
-        (\nodesAndEdgeList -> 
-            let _ = Debug.log "result " nodesAndEdgeList
+        (\nodesAndEdgeList ->
+            let
+                _ =
+                    Debug.log "result " nodesAndEdgeList
             in
             Graph.fromNodesAndEdges (List.foldl aggNodes [] nodesAndEdgeList) (List.foldl aggEdges [] nodesAndEdgeList)
         )
@@ -81,28 +96,35 @@ dot =
         |. spacing
         |. maybeParse id
         |. spacing
-        |= stmtList 
+        |= stmtList
+
 
 aggNodes : NodesAndEdge -> List (Node String) -> List (Node String)
-aggNodes (n1, n2, _) nodes =
+aggNodes ( n1, n2, _ ) nodes =
     n1 :: n2 :: nodes
 
+
 aggEdges : NodesAndEdge -> List (Edge String) -> List (Edge String)
-aggEdges (_, _, e) edges =
+aggEdges ( _, _, e ) edges =
     e :: edges
 
-type alias S = (Dict String Int, Iter Int Int)
 
-startIter = Tuple.first (Iter.step Iter.numbers)
+type alias S =
+    ( Dict String Int, Iter Int Int )
+
+
+startIter =
+    Tuple.first (Iter.step Iter.numbers)
+
 
 stmtList : Parser (List NodesAndEdge)
 stmtList =
     let
-        help : (S, List NodesAndEdge) -> Parser (Step (S, List NodesAndEdge) (S, List NodesAndEdge))
-        help ( (d, it), nodesAndEdge) =
+        help : ( S, List NodesAndEdge ) -> Parser (Step ( S, List NodesAndEdge ) ( S, List NodesAndEdge ))
+        help ( ( d, it ), nodesAndEdge ) =
             oneOf
-                [ succeed (\((dnext, itnext), nae) -> Loop ((dnext, itnext), (nae :: nodesAndEdge)))
-                    |= statement (d, it)
+                [ succeed (\( ( dnext, itnext ), nae ) -> Loop ( ( dnext, itnext ), nae :: nodesAndEdge ))
+                    |= statement ( d, it )
                     |. spacing
                     |. oneOf
                         [ symbol ";"
@@ -110,47 +132,55 @@ stmtList =
                         ]
                     |. spacing
                 , succeed ()
-                    |> map (\_ -> Done ((d, it), nodesAndEdge))
+                    |> map (\_ -> Done ( ( d, it ), nodesAndEdge ))
                 ]
     in
-    succeed (\(_, r) -> r)
+    succeed (\( _, r ) -> r)
         |. symbol "{"
         |. spacing
-        |= loop ((Dict.empty, startIter), []) help
+        |= loop ( ( Dict.empty, startIter ), [] ) help
         |. spacing
         |. symbol "}"
 
--- TODO pass Pair (Dict with key: label, value: NodeId, Iter.numbers)
-statement : S -> Parser (S, NodesAndEdge)
-statement (d, it) =
-    succeed (\from to ->
-        let (it2, idFrom) = case (Dict.get from d) of
-                                Nothing ->
-                                            let (itnext, val) = Iter.step it
-                                                n = case val of
-                                                        Nothing -> 42
-                                                        Just i -> i
-                                            in (itnext, n)
-                                Just n -> (it, n)
 
-            (it3, idTo) = case (Dict.get to d) of
-                                Nothing ->
-                                            let (itnext, val) = Iter.step it2
-                                                n = case val of
-                                                        Nothing -> 42
-                                                        Just i -> i
-                                            in (itnext, n)
-                                Just n -> (it2, n)
-            dnext = Dict.insert to idTo (Dict.insert from idFrom d)
-        in
-        ((dnext, it3), (node idFrom from, node idTo to, edge idFrom idTo))
-    )
-    |. spacing
-    |= id
-    |. spacing
-    |. symbol "->"
-    |. spacing
-    |= id
+statement : S -> Parser ( S, NodesAndEdge )
+statement ( d, iter ) =
+    succeed
+        (\from to ->
+            let ( it2, idFrom ) = getId d iter from
+                ( it3, idTo ) = getId d it2 to
+                dnext =
+                    Dict.insert from idFrom d |> Dict.insert to idTo
+            in
+            ( ( dnext, it3 ), ( node idFrom from, node idTo to, edge idFrom idTo ) )
+        )
+        |. spacing
+        |= id
+        |. spacing
+        |. symbol "->"
+        |. spacing
+        |= id
+
+getId : Dict comparable number -> Iter number b -> comparable -> ( Iter number b, number )
+getId dict iter gatvs =
+    case Dict.get gatvs dict of
+        Nothing ->
+            let
+                ( itnext, val ) =
+                    Iter.step iter
+
+                n =
+                    case val of
+                        Nothing ->
+                            42
+
+                        Just i ->
+                            i
+            in
+            ( itnext, n )
+
+        Just n ->
+            ( iter, n )
 
 unquotedVariable : Parser String
 unquotedVariable =
@@ -159,6 +189,7 @@ unquotedVariable =
         , inner = \c -> Char.isAlphaNum c || c == '_'
         , reserved = Set.fromList []
         }
+
 
 {-| `NodeId` describes the `ID` of a vertex. Potentially, it has a `Port` which
 describes where edges can attach to the vertex.
@@ -175,8 +206,8 @@ nodeId =
 
 {-| The identifier for a vertex.
 -}
-type alias ID = String
-
+type alias ID =
+    String
 
 
 maybeParse : Parser a -> Parser (Maybe a)
@@ -185,6 +216,7 @@ maybeParse parser =
         [ map Just parser
         , succeed Nothing
         ]
+
 
 repeat : Parser a -> Parser (List a)
 repeat parser =
@@ -210,7 +242,6 @@ comment =
         ]
 
 
-
 spacing : Parser ()
 spacing =
     let
@@ -229,4 +260,5 @@ spacing =
 
 
 id : Parser ID
-id = DQS.string
+id =
+    DQS.string
