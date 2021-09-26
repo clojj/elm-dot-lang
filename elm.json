@@ -11,6 +11,9 @@
     "dependencies": {
         "elm/core": "1.0.0 <= v < 2.0.0",
         "elm/parser": "1.0.0 <= v < 2.0.0",
+        "dosarf/elm-tree-view": "3.0.0 <= v < 4.0.0",
+        "elm-community/graph": "6.0.0 <= v < 7.0.0",
+        "fabiommendes/elm-iter": "1.0.0 <= v < 2.0.0",
         "hecrj/html-parser": "2.3.0 <= v < 3.0.0"
     },
     "test-dependencies": {
