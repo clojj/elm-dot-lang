@@ -7,6 +7,8 @@
     "elm-test": "0.19.1-revision2"
   },
   "devDependencies": {
-    "elm-format": "0.8.2"
+    "elm-format": "0.8.2",
+    "elm-json": "^0.2.10",
+    "elm-review": "^2.6.0"
   }
 }
